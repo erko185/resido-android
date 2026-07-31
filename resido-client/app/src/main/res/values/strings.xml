@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- User-facing strings are Slovak, mirroring the desktop client's
+         settings/offline screen copy (windows_app_script resido.ps1). -->
+    <string name="settings_title">Nastavenia</string>
+    <string name="settings_intro">Klient pre manažment. Zadaj adresu servera a ulož nastavenia.</string>
+
+    <string name="server_url_label">Adresa servera</string>
+    <string name="server_url_hint">http://192.168.x.x</string>
+    <string name="error_invalid_server_url">Neplatná adresa servera.</string>
+
+    <string name="printing_section_title">Tlačenie bločkov</string>
+    <string name="printer1_label">Tlačiareň 1 pre bločky</string>
+    <string name="printer2_label">Bonovačka 1</string>
+    <string name="printer3_label">Bonovačka 2</string>
+    <string name="printer4_label">Bonovačka 3</string>
+    <string name="printer5_label">Bonovačka 4</string>
+    <string name="printer_type_none">— nepoužívať —</string>
+    <string name="printer_type_network">Sieťová (IP)</string>
+    <string name="printer_type_bluetooth">Bluetooth</string>
+    <string name="printer_host_hint">IP adresa (napr. 192.168.1.200)</string>
+    <string name="printer_port_hint">Port</string>
+    <string name="printer_bt_pick">Vybrať zariadenie</string>
+    <string name="printer_bt_none_selected">Žiadne zariadenie</string>
+    <string name="printer_bt_no_bonded">Žiadne spárované Bluetooth zariadenia. Spáruj tlačiareň v nastaveniach Androidu.</string>
+    <string name="printer_bt_permission_denied">Bez povolenia Bluetooth sa tlačiareň nedá vybrať.</string>
+    <string name="printer_test_print">Test tlače</string>
+    <string name="printer_test_ok">Test odoslaný na tlačiareň.</string>
+    <string name="printer_test_failed">Test tlače zlyhal: %1$s</string>
+    <string name="printer_test_not_configured">Tlačiareň nie je nakonfigurovaná.</string>
+
+    <string name="updates_section_title">Aktualizácie</string>
+    <string name="app_version_label">Verzia appky: %1$s</string>
+    <string name="check_updates">Skontrolovať aktualizácie</string>
+    <string name="update_checking">Kontrolujem aktualizácie…</string>
+    <string name="update_none">Máte nainštalovanú najnovšiu verziu.</string>
+    <string name="update_available_status">K dispozícii je nová verzia %1$s.</string>
+    <string name="update_check_failed">Kontrolu aktualizácií sa nepodarilo dokončiť. Skontrolujte pripojenie.</string>
+    <string name="update_dialog_title">K dispozícii je aktualizácia</string>
+    <string name="update_dialog_message">K dispozícii je nová verzia %1$s. Chcete ju stiahnuť?</string>
+    <string name="update_dialog_download">Aktualizovať</string>
+    <string name="update_dialog_later">Neskôr</string>
+    <string name="update_downloading">Sťahujem aktualizáciu…</string>
+    <string name="update_downloaded_title">Aktualizácia stiahnutá</string>
+    <string name="update_downloaded_message">Verzia %1$s je stiahnutá a pripravená na inštaláciu. Inštalovať teraz?</string>
+    <string name="update_install_now">Inštalovať teraz</string>
+    <string name="update_download_failed">Sťahovanie aktualizácie zlyhalo. Skúste to znova.</string>
+
+    <string name="save_and_connect">Uložiť a pripojiť</string>
+    <string name="saved">Uložené.</string>
+
+    <string name="offline_title">Server nie je dostupný</string>
+    <string name="offline_message">Nepodarilo sa pripojiť na server. Skontroluj pripojenie a adresu servera v nastaveniach.</string>
+    <string name="offline_retry">Skúsiť znova</string>
+    <string name="offline_open_settings">Nastavenia</string>
+</resources>

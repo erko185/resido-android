@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="14dp"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/printer_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/resido_text"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
+    <Spinner
+        android:id="@+id/printer_type"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="6dp"
+        android:background="@drawable/bg_input"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp" />
+
+    <LinearLayout
+        android:id="@+id/printer_network_fields"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/printer_host"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="2"
+            android:background="@drawable/bg_input"
+            android:hint="@string/printer_host_hint"
+            android:importantForAutofill="no"
+            android:inputType="textUri"
+            android:padding="12dp"
+            android:textColor="@color/resido_text"
+            android:textColorHint="@color/resido_text_hint" />
+
+        <EditText
+            android:id="@+id/printer_port"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_input"
+            android:hint="@string/printer_port_hint"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:padding="12dp"
+            android:textColor="@color/resido_text"
+            android:textColorHint="@color/resido_text_hint" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/printer_bluetooth_fields"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/printer_bt_device"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_input"
+            android:padding="12dp"
+            android:text="@string/printer_bt_none_selected"
+            android:textColor="@color/resido_text_muted" />
+
+        <Button
+            android:id="@+id/printer_bt_pick"
+            style="@style/Widget.Resido.Button.Secondary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/printer_bt_pick" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/printer_test"
+        style="@style/Widget.Resido.Button.Secondary"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/printer_test_print"
+        android:visibility="gone" />
+</LinearLayout>

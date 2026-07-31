@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Self-update: download APK from the update host and hand it to the
+         package installer. Sideload distribution only - Play builds must not
+         carry this permission (store policy). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+</manifest>

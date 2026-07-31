@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark palette copied from the desktop client's offline.html so the
+         native settings screen looks like the screen users already know. -->
+    <color name="resido_bg">#0F172A</color>
+    <color name="resido_card">#111827</color>
+    <color name="resido_card_border">#334155</color>
+    <color name="resido_input_bg">#0B1220</color>
+    <color name="resido_input_border">#475569</color>
+    <color name="resido_text">#E2E8F0</color>
+    <color name="resido_text_muted">#CBD5E1</color>
+    <color name="resido_text_hint">#94A3B8</color>
+    <color name="resido_primary">#2563EB</color>
+    <color name="resido_secondary">#334155</color>
+    <color name="resido_status">#93C5FD</color>
+</resources>

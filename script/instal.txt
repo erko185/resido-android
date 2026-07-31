@@ -1,0 +1,95 @@
+RESIDO ANDROID KLIENT
+=====================
+
+Build a vydanie novej verzie
+----------------------------
+
+Najjednoduchsie: spusti ./build.sh (v tomto priecinku, na Macu/Linuxe).
+
+Postupne sa opyta:
+1. Aku verziu nastavit do RESIDO_ANDROID_CLIENT_VERSION v .env
+   (Enter = bez zmeny)
+2. SFTP heslo (host 37.9.175.196 je v skripte natvrdo; pouzivatelske meno
+   je predvolene "residoandroid.vorntech.sk" - ak hosting vygeneroval ine,
+   nastav ho v .env ako RESIDO_ANDROID_SFTP_USER=...)
+
+a potom uz sam: zbuilduje podpisany release APK cez Gradle, vytvori
+latest.json (versionCode + apkUrl + sha256) a nahra oba subory na update
+host cez SFTP.
+
+Bez interaktivneho vypytania verzie/uploadu (napr. v CI):
+./build.sh --version 1.2.0 --skip-upload
+
+Poziadavky na build stroj: JDK 17+, Android SDK (cesta v
+resido-client/local.properties ako sdk.dir=..., alebo ANDROID_HOME).
+
+!!! KEYSTORE !!!
+Pri prvom spusteni build.sh vygeneruje podpisovy kluc
+resido-client/keystore/resido-release.jks + keystore.properties.
+OBA SUBORY ZALOHUJ mimo git (nie su commitnute). Android odmietne
+nainstalovat update podpisany inym klucom - strata keystore znamena,
+ze vsetky tablety treba preinstalovat rucne.
+
+Prva instalacia na tablet (sideload)
+------------------------------------
+
+0. AKTUALIZUJ WEBVIEW ENGINE - appka vykresluje Resido cez systemovy
+   WebView a panel (Filament) vyzaduje moderny engine (Chrome 111+).
+   Na tablete z vyroby byva stary -> stranka sa nacita BEZ STYLOV.
+   V Obchode Play aktualizuj "Android System WebView" aj "Chrome"
+   (ktora z nich je aktivna, ukazuje Moznosti pre vyvojarov ->
+   Implementacia WebView). Po prihlaseni do Play sa uz aktualizuje sam.
+
+1. Skopiruj resido-<verzia>.apk na tablet (USB, download z
+   https://residoandroid.vorntech.sk/, ...).
+2. Otvor APK - Android sa opyta na povolenie "instalovat nezname aplikacie"
+   pre prehliadac/spravcu suborov, povol ho.
+3. Po spusteni appky zadaj adresu servera (napr. http://192.168.1.50)
+   a nakonfiguruj tlaciarne, potom "Ulozit a pripojit".
+
+Auto-update: appka kontroluje novu verziu pri starte a kazde 4 hodiny,
+opyta sa pred stiahnutim aj pred instalaciou. Pri prvom update sa Android
+jednorazovo opyta na povolenie "instalovat nezname aplikacie" pre Resido.
+
+Tlaciarne
+---------
+
+Appka tlaci NAPRIAMO na ESC/POS termotlaciarne (bez Android print dialogu):
+- Sietova (IP): standardny RAW port 9100 (Epson, Xprinter, vacsina
+  pokladnicnych tlaciarni). Zadaj IP adresu tlaciarne, port necha 9100.
+- Bluetooth: tlaciaren najprv sparuj v Android nastaveniach, potom ju
+  vyber v nastaveniach appky (tlacidlo "Vybrat zariadenie").
+
+Sloty su rovnake ako vo Windows klientovi:
+- Tlaciaren 1 pre blociky (printSilent)
+- Bonovacka 1-4 (printSilentBon az printSilentBonFour)
+
+POZOR: na rozdiel od Windows klienta neexistuje "systemova predvolena"
+tlaciaren - ak Tlaciaren 1 nie je nakonfigurovana, tlac blocika sa otvori
+ako nahlad v okne (fallback webu), rovnako ako v obycajnom prehliadaci.
+
+Google Play kanal
+-----------------
+
+Alternativa k sideloadu: ./build.sh --play zbuilduje AAB bundle
+(dist/resido-<verzia>.aab) z "play" flavoru - ten NEMA vlastny updater ani
+REQUEST_INSTALL_PACKAGES (politika Google Play zakazuje samo-aktualizujuce
+sa appky; updaty distribuuje Obchod Play sam).
+
+- Bundle sa nahrava rucne v Play Console (Vytvorit vydanie), verzia sa
+  zadava rovnako cez build.sh (versionCode musi rast).
+- POZOR: kanaly sa nedaju miesat - Play pouziva Play App Signing (iny
+  podpisovy kluc nez nas keystore), takze tablet so sideload instalaciou
+  treba pri prechode na Play verziu preinstalovat (a naopak).
+- Pre interne pouzitie publikuj ako unlisted/private, nech appka nie je
+  verejne vyhladatelna.
+
+Update host
+-----------
+
+https://residoandroid.vorntech.sk/ musi servovat:
+- latest.json  ... {"versionCode": ..., "versionName": "...",
+                    "apkUrl": "...", "sha256": "..."}
+- resido-<verzia>.apk
+
+(vhost na 37.9.175.196, rovnaky server ako residowindows.vorntech.sk)

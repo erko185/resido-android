@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- DayNight is intentionally NOT used - the desktop client is a fixed
+         dark shell and the /resido panel itself has darkMode disabled. -->
+    <style name="Theme.Resido" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@color/resido_bg</item>
+        <item name="colorPrimary">@color/resido_primary</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="android:statusBarColor">@color/resido_bg</item>
+        <item name="android:navigationBarColor">@color/resido_bg</item>
+    </style>
+
+    <!-- Buttons styled after the desktop offline.html (.primary/.secondary). -->
+    <style name="Widget.Resido.Button.Primary" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/resido_primary</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:textStyle">bold</item>
+        <item name="cornerRadius">10dp</item>
+    </style>
+
+    <style name="Widget.Resido.Button.Secondary" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/resido_secondary</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:textStyle">bold</item>
+        <item name="cornerRadius">10dp</item>
+    </style>
+
+    <!-- The .section-title style from the desktop offline.html. -->
+    <style name="Widget.Resido.SectionTitle" parent="">
+        <item name="android:layout_marginTop">18dp</item>
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:textColor">@color/resido_text_hint</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+</resources>

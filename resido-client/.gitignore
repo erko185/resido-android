@@ -1,0 +1,15 @@
+# Build outputs and local state — the Gradle project itself is committed,
+# but anything machine-specific or generated stays out of git.
+.gradle/
+build/
+dist/
+local.properties
+.idea/
+*.iml
+.DS_Store
+
+# Release signing — the keystore must NEVER be committed. Losing it breaks
+# the auto-update channel (Android refuses updates signed with another key),
+# so back it up somewhere safe outside git.
+keystore/
+keystore.properties

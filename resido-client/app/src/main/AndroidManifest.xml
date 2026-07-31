@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Bluetooth SPP thermal printers. Legacy BLUETOOTH/BLUETOOTH_ADMIN are
+         deliberately declared WITHOUT maxSdkVersion="30": MIUI's Bluetooth
+         stack on Android 12 still checks the legacy permission on socket
+         connect ("UID ... lacks permission android.permission.BLUETOOTH")
+         even when the runtime BLUETOOTH_CONNECT is granted. They are
+         install-time permissions, harmless on stock Android. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- REQUEST_INSTALL_PACKAGES (self-update) lives in the sideload flavor's
+         manifest - Google Play policy forbids it for store-distributed builds. -->
+
+    <application
+        android:name=".ResidoApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="${appName}"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.Resido"
+        android:usesCleartextTraffic="true"
+        tools:targetApi="31">
+
+        <!-- configChanges: the WebView must survive rotation without an
+             activity recreate - a reload would drop the POS board state. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|density|smallestScreenSize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="@string/settings_title"
+            android:windowSoftInputMode="adjustResize" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+</manifest>
