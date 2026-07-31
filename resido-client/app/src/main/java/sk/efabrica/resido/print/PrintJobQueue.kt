@@ -75,13 +75,19 @@ class PrintJobQueue(
 
         return try {
             val transport = PrinterTransport.forConfig(appContext, config) ?: return false
-            val singleCopy = EscPosEncoder.encode(rendered.bitmap)
 
-            // N copies as one session of N full streams - the cut command at
-            // the end of each stream separates the copies on the roll.
-            val payload = ByteArray(singleCopy.size * rendered.copies)
-            for (copy in 0 until rendered.copies) {
-                singleCopy.copyInto(payload, copy * singleCopy.size)
+            // Encoding walks a couple of million pixels - keep it off the
+            // main thread so printing cannot freeze the board UI.
+            val payload = withContext(kotlinx.coroutines.Dispatchers.Default) {
+                val singleCopy = EscPosEncoder.encode(rendered.bitmap)
+
+                // N copies as one session of N full streams - the cut command
+                // at the end of each stream separates the copies on the roll.
+                ByteArray(singleCopy.size * rendered.copies).also { combined ->
+                    for (copy in 0 until rendered.copies) {
+                        singleCopy.copyInto(combined, copy * singleCopy.size)
+                    }
+                }
             }
 
             withContext(Dispatchers.IO) {

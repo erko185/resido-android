@@ -224,8 +224,14 @@ class ReceiptRenderer(
         attachHost?.let { host ->
             // VISIBLE on purpose: Chromium only rasterizes web content for
             // views it considers shown - INVISIBLE/detached ones draw blank
-            // on some devices. A 1x1 px view is imperceptible in practice.
-            host.addView(view, ViewGroup.LayoutParams(1, 1))
+            // on some devices. A 1x1 px container is imperceptible, clips the
+            // web content away, and - crucially - swallows the WebView's
+            // requestLayout() storms so printing cannot jank or freeze the
+            // activity's real UI.
+            val isolator = RenderHostView(host.context)
+            host.addView(isolator, ViewGroup.LayoutParams(1, 1))
+            isolator.addView(view, ViewGroup.LayoutParams(1, 1))
+            isolator.swallowLayoutRequests = true
         }
 
         view.webViewClient = object : WebViewClient() {
@@ -287,6 +293,22 @@ class ReceiptRenderer(
             if (heightCssPx <= 0) null else Measurement(widthMm, heightCssPx, copies)
         } catch (_: Exception) {
             null
+        }
+    }
+
+    /**
+     * Keeps the render WebView attached (so Chromium rasterizes it) while
+     * isolating the rest of the view hierarchy from its layout requests -
+     * without this every print re-layouts the whole activity repeatedly,
+     * which shows up as UI flicker and multi-second freezes.
+     */
+    private class RenderHostView(context: Context) : android.widget.FrameLayout(context) {
+        var swallowLayoutRequests = false
+
+        override fun requestLayout() {
+            if (!swallowLayoutRequests) {
+                super.requestLayout()
+            }
         }
     }
 
