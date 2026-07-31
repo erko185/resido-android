@@ -72,34 +72,40 @@ class ReceiptRenderer(context: Context) {
         }
         val widthDots = mmToDots(widthMm)
 
-        // Re-layout when the CSS-declared width differs from the provisional one.
-        if (widthDots != view.width) {
-            layoutWebView(view, widthDots, PROVISIONAL_HEIGHT_DOTS)
-            delay(RENDER_SETTLE_DELAY_MS)
-        }
-
-        // Self-calibrating scale: whatever page scale the WebView chose, the
-        // measured CSS viewport width tells us the effective device-px-per-
-        // CSS-px ratio, and a CSS zoom re-lays the content out at exactly
-        // widthMm of CSS millimetres across the widthDots-wide bitmap.
-        if (!applyCalibratedZoom(view, widthMm)) {
+        // Calibrate the device-px-per-CSS-px ratio of this WebView build by
+        // measuring the actual CSS viewport width. No CSS zoom / initial
+        // scale is involved anywhere - those behave differently across
+        // WebView versions and broke print sizing in the field.
+        val innerWidthCss = view.evaluateJs(VIEWPORT_WIDTH_JS)?.toDoubleOrNull()
+        if (innerWidthCss == null || innerWidthCss <= 0) {
             resetWebView(view)
             return@withContext null
         }
+        val pageScale = view.width / innerWidthCss
+
+        // Lay the content out at exactly widthMm of CSS millimetres.
+        val targetCssWidth = widthMm * CSS_PX_PER_MM
+        val layoutWidthPx = (targetCssWidth * pageScale).roundToInt().coerceAtLeast(1)
+        layoutWebView(view, layoutWidthPx, PROVISIONAL_HEIGHT_DOTS)
         delay(RENDER_SETTLE_DELAY_MS)
 
-        // Height measured after the zoom, in the content's own coordinate
-        // space - device px = css px * DOTS_PER_CSS_PX by construction.
         val heightCssPx = measure(view)?.heightCssPx ?: measurement.heightCssPx
-        val contentHeightDots = ceil(heightCssPx * DOTS_PER_CSS_PX).toInt() + HEIGHT_BUFFER_MM * DOTS_PER_MM
-        val heightDots = contentHeightDots.coerceIn(MIN_HEIGHT_DOTS, MAX_HEIGHT_DOTS)
-
-        layoutWebView(view, widthDots, heightDots)
+        val contentHeightPx = ceil(heightCssPx * pageScale).toInt().coerceAtLeast(1)
+        layoutWebView(view, layoutWidthPx, contentHeightPx)
         delay(RENDER_SETTLE_DELAY_MS)
+
+        // Rasterize with a Canvas scale so the bitmap comes out natively at
+        // printer resolution (widthDots across) - Skia scales vector content,
+        // so text stays crisp regardless of the WebView's own page scale.
+        val renderScale = widthDots.toFloat() / layoutWidthPx
+        val contentHeightDots = ceil(contentHeightPx * renderScale).toInt() + HEIGHT_BUFFER_MM * DOTS_PER_MM
+        val heightDots = contentHeightDots.coerceIn(MIN_HEIGHT_DOTS, MAX_HEIGHT_DOTS)
 
         val bitmap = Bitmap.createBitmap(widthDots, heightDots, Bitmap.Config.ARGB_8888)
         bitmap.eraseColor(Color.WHITE)
-        view.draw(Canvas(bitmap))
+        val canvas = Canvas(bitmap)
+        canvas.scale(renderScale, renderScale)
+        view.draw(canvas)
 
         resetWebView(view)
 
@@ -194,27 +200,6 @@ class ReceiptRenderer(context: Context) {
         }
     }
 
-    /**
-     * Measures the actual CSS viewport width and injects a CSS zoom so the
-     * content lays out at exactly [widthMm] CSS millimetres across the
-     * WebView's physical width. Immune to setInitialScale/density/font-scale
-     * differences between WebView versions (the same technique the desktop
-     * client uses for its off-screen print window).
-     */
-    private suspend fun applyCalibratedZoom(view: WebView, widthMm: Int): Boolean {
-        val innerWidthCss = view.evaluateJs("window.innerWidth")?.toDoubleOrNull() ?: return false
-
-        if (innerWidthCss <= 0) {
-            return false
-        }
-
-        val targetCssWidth = widthMm * (96.0 / 25.4)
-        val zoom = innerWidthCss / targetCssWidth
-        view.evaluateJs("document.documentElement.style.zoom = '$zoom'")
-
-        return true
-    }
-
     private fun layoutWebView(view: WebView, widthDots: Int, heightDots: Int) {
         view.measure(
             View.MeasureSpec.makeMeasureSpec(widthDots, View.MeasureSpec.EXACTLY),
@@ -233,8 +218,15 @@ class ReceiptRenderer(context: Context) {
         /** Standard thermal printer resolution: 203 dpi ~ 8 dots per mm. */
         private const val DOTS_PER_MM = 8
 
-        /** CSS renders at 96 px/inch; dots per CSS px = 8 / (96/25.4) ~ 2.1167. */
-        private const val DOTS_PER_CSS_PX = DOTS_PER_MM / (96.0 / 25.4)
+        /** CSS renders at 96 px/inch. */
+        private const val CSS_PX_PER_MM = 96.0 / 25.4
+
+        /** Dots per CSS px = 8 / (96/25.4) ~ 2.1167. */
+        private const val DOTS_PER_CSS_PX = DOTS_PER_MM / CSS_PX_PER_MM
+
+        /** Reads the CSS viewport width; visualViewport is sub-pixel exact. */
+        private const val VIEWPORT_WIDTH_JS =
+            "(window.visualViewport ? window.visualViewport.width : window.innerWidth)"
 
         /** Printable width fallback when neither URL nor CSS declare one. */
         private const val DEFAULT_WIDTH_MM = 72
