@@ -65,7 +65,10 @@ class MainActivity : AppCompatActivity(), JsBridge.Host {
             context = this,
             scope = lifecycleScope,
             prefs = prefs,
-            renderer = ReceiptRenderer(this),
+            // Attached (1x1 px) to the window: Chromium does not rasterize
+            // window-detached WebViews on some devices, which made silent
+            // prints come out blank.
+            renderer = ReceiptRenderer(this, findViewById(android.R.id.content)),
             onResolve = ::resolveBridgeRequest,
         )
 

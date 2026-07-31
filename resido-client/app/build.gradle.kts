@@ -73,6 +73,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Installable next to the release app - used by the remote print
+            // test harness (TestPrintActivity) during development.
+            applicationIdSuffix = ".test"
+        }
         release {
             // No shrinking: the app is a thin WebView shell, and R8 config
             // maintenance is not worth the few hundred KB on a sideload APK.

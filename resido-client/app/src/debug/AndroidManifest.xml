@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Debug-only harness: lets adb trigger a render+print of any URL to
+             any TCP printer, so print sizing can be debugged on a real device
+             without touching the UI or wasting paper. Debug builds only -
+             release manifests must NOT register it (it can render
+             authenticated pages and send them to an arbitrary host). -->
+        <activity
+            android:name="sk.efabrica.resido.debug.TestPrintActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Resido" />
+    </application>
+
+</manifest>

@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -28,7 +29,16 @@ import kotlin.math.roundToInt
  * client's hidden BrowserWindow + webContents.print flow: the page is
  * rasterized here and sent to the printer as ESC/POS raster data.
  */
-class ReceiptRenderer(context: Context) {
+class ReceiptRenderer(
+    context: Context,
+    /**
+     * Optional view hierarchy to (invisibly) attach the render WebView into.
+     * Some WebView builds never rasterize a window-detached view (draw() and
+     * capturePicture() both yield blank output, e.g. MIUI devices) - being
+     * attached, even at 1x1 px and INVISIBLE, restores pixel output.
+     */
+    private val attachHost: ViewGroup? = null,
+) {
 
     data class Rendered(val bitmap: Bitmap, val copies: Int)
 
@@ -71,45 +81,110 @@ class ReceiptRenderer(context: Context) {
             else -> DEFAULT_WIDTH_MM
         }
         val widthDots = mmToDots(widthMm)
+        val targetCssWidth = widthMm * CSS_PX_PER_MM
 
-        // Calibrate the device-px-per-CSS-px ratio of this WebView build by
-        // measuring the actual CSS viewport width. No CSS zoom / initial
-        // scale is involved anywhere - those behave differently across
-        // WebView versions and broke print sizing in the field.
-        val innerWidthCss = view.evaluateJs(VIEWPORT_WIDTH_JS)?.toDoubleOrNull()
-        if (innerWidthCss == null || innerWidthCss <= 0) {
+        // Pin the CSS layout viewport to the paper width via a meta viewport
+        // tag - the one mechanism actually designed for this (honoured with
+        // useWideViewPort=true), instead of fighting version-specific
+        // initial-scale/zoom behaviours.
+        view.evaluateJs(metaViewportJs(targetCssWidth))
+
+        if (view.width != widthDots) {
+            layoutWebView(view, widthDots, PROVISIONAL_HEIGHT_DOTS)
+        }
+        delay(RENDER_SETTLE_DELAY_MS)
+
+        // Calibrate whatever this WebView actually did: clientWidth is the
+        // real CSS layout width, view.scale the real physical-per-CSS ratio.
+        // The Canvas transform bridges any remaining difference losslessly
+        // (Skia scales vectors, text stays crisp).
+        val clientWidthCss = view.evaluateJs(VIEWPORT_WIDTH_JS)?.toDoubleOrNull()
+        @Suppress("DEPRECATION") val pageScale = view.scale.toDouble()
+        if (clientWidthCss == null || clientWidthCss <= 0 || pageScale <= 0) {
             resetWebView(view)
             return@withContext null
         }
-        val pageScale = view.width / innerWidthCss
 
-        // Lay the content out at exactly widthMm of CSS millimetres.
-        val targetCssWidth = widthMm * CSS_PX_PER_MM
-        val layoutWidthPx = (targetCssWidth * pageScale).roundToInt().coerceAtLeast(1)
-        layoutWebView(view, layoutWidthPx, PROVISIONAL_HEIGHT_DOTS)
-        delay(RENDER_SETTLE_DELAY_MS)
+        val contentPhysicalWidth = clientWidthCss * pageScale
+        val renderScale = (widthDots / contentPhysicalWidth).toFloat()
 
         val heightCssPx = measure(view)?.heightCssPx ?: measurement.heightCssPx
-        val contentHeightPx = ceil(heightCssPx * pageScale).toInt().coerceAtLeast(1)
-        layoutWebView(view, layoutWidthPx, contentHeightPx)
+        val contentPhysicalHeight = ceil(heightCssPx * pageScale).toInt().coerceAtLeast(1)
+        layoutWebView(view, widthDots, contentPhysicalHeight)
         delay(RENDER_SETTLE_DELAY_MS)
 
-        // Rasterize with a Canvas scale so the bitmap comes out natively at
-        // printer resolution (widthDots across) - Skia scales vector content,
-        // so text stays crisp regardless of the WebView's own page scale.
-        val renderScale = widthDots.toFloat() / layoutWidthPx
-        val contentHeightDots = ceil(contentHeightPx * renderScale).toInt() + HEIGHT_BUFFER_MM * DOTS_PER_MM
+        val contentHeightDots = ceil(contentPhysicalHeight * renderScale).toInt() + HEIGHT_BUFFER_MM * DOTS_PER_MM
         val heightDots = contentHeightDots.coerceIn(MIN_HEIGHT_DOTS, MAX_HEIGHT_DOTS)
 
+        android.util.Log.i(
+            "ResidoPrint",
+            "render: widthMm=$widthMm widthDots=$widthDots clientWidthCss=$clientWidthCss " +
+                "pageScale=$pageScale renderScale=$renderScale heightCss=$heightCssPx heightDots=$heightDots"
+        )
+
+        // Chromium produces the first rasterizable frame asynchronously - a
+        // draw() too early yields a blank bitmap on some devices. Re-layout
+        // and redraw until pixels appear (each attempt re-applies the layout,
+        // because attached views get re-measured back to their placeholder
+        // size by the hierarchy's own traversals).
+        var bitmap: Bitmap? = null
+
+        for (attempt in 1..DRAW_ATTEMPTS) {
+            layoutWebView(view, widthDots, contentPhysicalHeight)
+            view.invalidate()
+            val candidate = drawToBitmap(view, widthDots, heightDots, renderScale)
+
+            if (!isBlank(candidate)) {
+                if (attempt > 1) {
+                    android.util.Log.i("ResidoPrint", "render: pixels appeared on draw attempt $attempt")
+                }
+                bitmap = candidate
+                break
+            }
+
+            candidate.recycle()
+            delay(DRAW_RETRY_DELAY_MS)
+        }
+
+        resetWebView(view)
+
+        if (bitmap == null) {
+            // Better a browser-window fallback than feeding blank paper out.
+            android.util.Log.w("ResidoPrint", "render: bitmap stayed blank, giving up")
+            return@withContext null
+        }
+
+        Rendered(bitmap, measurement.copies)
+    }
+
+    private fun drawToBitmap(view: WebView, widthDots: Int, heightDots: Int, renderScale: Float): Bitmap {
         val bitmap = Bitmap.createBitmap(widthDots, heightDots, Bitmap.Config.ARGB_8888)
         bitmap.eraseColor(Color.WHITE)
         val canvas = Canvas(bitmap)
         canvas.scale(renderScale, renderScale)
         view.draw(canvas)
 
-        resetWebView(view)
+        return bitmap
+    }
 
-        Rendered(bitmap, measurement.copies)
+    /** Cheap sparse scan for any non-white pixel. */
+    private fun isBlank(bitmap: Bitmap): Boolean {
+        val width = bitmap.width
+        val height = bitmap.height
+        var y = 0
+        val row = IntArray(width)
+
+        while (y < height) {
+            bitmap.getPixels(row, 0, width, 0, y, width, 1)
+            for (x in 0 until width step 4) {
+                if (row[x] and 0xFFFFFF != 0xFFFFFF) {
+                    return false
+                }
+            }
+            y += 16
+        }
+
+        return true
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -121,22 +196,37 @@ class ReceiptRenderer(context: Context) {
             javaScriptEnabled = true
             domStorageEnabled = true
             cacheMode = WebSettings.LOAD_NO_CACHE
-            // The layout viewport must be exactly layoutWidth/scale CSS px -
-            // ignore the page's viewport meta so the receipt width is under
-            // our control (mirrors the desktop's fixed print pageSize).
-            useWideViewPort = false
-            loadWithOverviewMode = false
+            // Honour the meta viewport tag the renderer injects (pins the CSS
+            // layout width to the paper width) and auto-fit it to the view.
+            useWideViewPort = true
+            loadWithOverviewMode = true
             // WebView multiplies CSS text sizes by the system font-size
             // setting by default - a "large font" device would print bigger
             // text that overflows the paper width. Print output must be
             // deterministic, identical to the desktop client.
             textZoom = 100
+            // Pin the font environment to desktop-Chromium defaults - vendors
+            // override these (e.g. MIUI bumps the fixed font size), which
+            // reflows the receipt's monospace layout.
+            defaultFontSize = 16
+            defaultFixedFontSize = 13
+            minimumFontSize = 1
+            minimumLogicalFontSize = 1
         }
-        // No setInitialScale here: WebView versions differ in whether they
-        // honour it (density interplay), which broke print sizing on real
-        // devices. The scale is self-calibrated per print instead - the
-        // renderer measures window.innerWidth and injects a CSS zoom so the
-        // content lays out at exactly the paper width (see applyCalibratedZoom).
+        // Scrollbars would be rasterized right into the receipt.
+        view.isVerticalScrollBarEnabled = false
+        view.isHorizontalScrollBarEnabled = false
+        view.overScrollMode = View.OVER_SCROLL_NEVER
+        // NOTE: do NOT setLayerType(LAYER_TYPE_SOFTWARE) here - modern
+        // Chromium WebView does not support software layers and renders
+        // nothing at all with one.
+
+        attachHost?.let { host ->
+            // VISIBLE on purpose: Chromium only rasterizes web content for
+            // views it considers shown - INVISIBLE/detached ones draw blank
+            // on some devices. A 1x1 px view is imperceptible in practice.
+            host.addView(view, ViewGroup.LayoutParams(1, 1))
+        }
 
         view.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
@@ -224,9 +314,29 @@ class ReceiptRenderer(context: Context) {
         /** Dots per CSS px = 8 / (96/25.4) ~ 2.1167. */
         private const val DOTS_PER_CSS_PX = DOTS_PER_MM / CSS_PX_PER_MM
 
-        /** Reads the CSS viewport width; visualViewport is sub-pixel exact. */
-        private const val VIEWPORT_WIDTH_JS =
-            "(window.visualViewport ? window.visualViewport.width : window.innerWidth)"
+        /** Real CSS layout viewport width (excludes any pinch/visual zoom). */
+        private const val VIEWPORT_WIDTH_JS = "document.documentElement.clientWidth"
+
+        private const val DRAW_ATTEMPTS = 15
+        private const val DRAW_RETRY_DELAY_MS = 400L
+
+        /** Injects/overwrites the page's meta viewport with a fixed width. */
+        fun metaViewportJs(targetCssWidth: Double): String {
+            val width = targetCssWidth.roundToInt()
+
+            return """
+                (() => {
+                    let meta = document.querySelector('meta[name="viewport"]');
+                    if (!meta) {
+                        meta = document.createElement('meta');
+                        meta.setAttribute('name', 'viewport');
+                        document.head.appendChild(meta);
+                    }
+                    meta.setAttribute('content', 'width=$width');
+                    return 'vp';
+                })()
+            """
+        }
 
         /** Printable width fallback when neither URL nor CSS declare one. */
         private const val DEFAULT_WIDTH_MM = 72
