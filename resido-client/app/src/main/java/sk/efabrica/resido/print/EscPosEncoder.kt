@@ -21,8 +21,15 @@ object EscPosEncoder {
     private const val MAX_CHUNK_ROWS = 255
 
     private val INIT = byteArrayOf(0x1B, 0x40) // ESC @
-    private val FEED = byteArrayOf(0x1B, 0x64, 0x04) // ESC d 4 - feed 4 lines before cut
-    private val PARTIAL_CUT = byteArrayOf(0x1D, 0x56, 0x42, 0x00) // GS V B 0
+
+    // 6 lines (~18mm) so the printed end clears the cutter blade, which sits
+    // well above the print head on 80mm printers.
+    private val FEED = byteArrayOf(0x1B, 0x64, 0x06) // ESC d 6
+
+    // GS V 0 (full cut) - the plain m=0 form is the most widely implemented;
+    // e.g. Xprinter V330N firmware in Bluetooth mode ignores the fancier
+    // GS V B n (feed+partial) variant and just doesn't cut.
+    private val CUT = byteArrayOf(0x1D, 0x56, 0x00)
 
     /**
      * Encodes one printed copy of the bitmap, including trailing feed and
@@ -63,7 +70,7 @@ object EscPosEncoder {
         }
 
         out.write(FEED)
-        out.write(PARTIAL_CUT)
+        out.write(CUT)
 
         return out.toByteArray()
     }
