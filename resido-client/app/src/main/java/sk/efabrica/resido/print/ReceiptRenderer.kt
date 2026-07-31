@@ -110,6 +110,11 @@ class ReceiptRenderer(context: Context) {
             // our control (mirrors the desktop's fixed print pageSize).
             useWideViewPort = false
             loadWithOverviewMode = false
+            // WebView multiplies CSS text sizes by the system font-size
+            // setting by default - a "large font" device would print bigger
+            // text that overflows the paper width. Print output must be
+            // deterministic, identical to the desktop client.
+            textZoom = 100
         }
         // 1 CSS mm must land on DOTS_PER_MM device px so the bitmap is
         // natively at printer resolution (203 dpi ~ 8 dots/mm).
