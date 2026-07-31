@@ -64,9 +64,9 @@ Sloty su rovnake ako vo Windows klientovi:
 - Tlaciaren 1 pre blociky (printSilent)
 - Bonovacka 1-4 (printSilentBon az printSilentBonFour)
 
-POZOR: na rozdiel od Windows klienta neexistuje "systemova predvolena"
-tlaciaren - ak Tlaciaren 1 nie je nakonfigurovana, tlac blocika sa otvori
-ako nahlad v okne (fallback webu), rovnako ako v obycajnom prehliadaci.
+Kazdy slot sa nastavuje vyslovne, ziadna "systemova predvolena" tlaciaren
+neexistuje (rovnako ako vo Windows klientovi od verzie 3.7.2) - ak slot nie
+je nakonfigurovany, tlac sa otvori ako nahlad v okne, ako v prehliadaci.
 
 Google Play kanal
 -----------------
