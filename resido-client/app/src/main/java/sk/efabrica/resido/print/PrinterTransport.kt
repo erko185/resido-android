@@ -76,6 +76,17 @@ class BluetoothPrinterTransport(
     // Connect permission is verified explicitly before any Bluetooth call.
     @SuppressLint("MissingPermission")
     override fun send(data: ByteArray) {
+        // One printer = one RFCOMM link. Concurrent connections (e.g. a test
+        // print racing a silent print) kill each other mid-stream - the
+        // printer then dumps the truncated raster as garbage text and the
+        // cut command never arrives. All Bluetooth printing serializes here.
+        synchronized(GLOBAL_BT_LOCK) {
+            sendLocked(data)
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun sendLocked(data: ByteArray) {
         if (!hasConnectPermission(context)) {
             throw IOException("Missing BLUETOOTH_CONNECT permission")
         }
@@ -99,37 +110,70 @@ class BluetoothPrinterTransport(
         } catch (_: SecurityException) {
         }
 
-        device.createRfcommSocketToServiceRecord(SPP_UUID).use { socket ->
-            socket.connect()
-            val output = socket.outputStream
+        var lastError: IOException? = null
 
-            // Cheap BT printers have tiny input buffers and no working flow
-            // control - dumping a whole raster receipt at once overflows them
-            // and the tail comes out as garbage characters. Feed the data in
-            // small chunks with short pauses instead.
-            var offset = 0
-            while (offset < data.size) {
-                val length = minOf(BT_WRITE_CHUNK_BYTES, data.size - offset)
-                output.write(data, offset, length)
-                output.flush()
-                offset += length
-
-                if (offset < data.size) {
-                    Thread.sleep(BT_WRITE_CHUNK_DELAY_MS)
-                }
+        for (attempt in 1..CONNECT_ATTEMPTS) {
+            // First try the standard secure SPP socket; on retry switch to
+            // the insecure variant - thermal printers frequently reject the
+            // first secure connect after idle ("read failed ... read ret: -1").
+            val socket = if (attempt == 1) {
+                device.createRfcommSocketToServiceRecord(SPP_UUID)
+            } else {
+                device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
             }
 
-            // SPP has no delivery acknowledgement; give the printer a moment
-            // to consume its input buffer before the socket goes away.
-            Thread.sleep(FLUSH_DELAY_MS)
+            var wroteAnything = false
+
+            try {
+                socket.use { open ->
+                    open.connect()
+                    val output = open.outputStream
+
+                    // Cheap BT printers have tiny input buffers and no working
+                    // flow control - dumping a whole raster receipt at once
+                    // overflows them. Feed the data in small chunks instead.
+                    var offset = 0
+                    while (offset < data.size) {
+                        val length = minOf(BT_WRITE_CHUNK_BYTES, data.size - offset)
+                        output.write(data, offset, length)
+                        output.flush()
+                        wroteAnything = true
+                        offset += length
+
+                        if (offset < data.size) {
+                            Thread.sleep(BT_WRITE_CHUNK_DELAY_MS)
+                        }
+                    }
+
+                    // SPP has no delivery acknowledgement; give the printer a
+                    // moment to consume its buffer before the socket goes away.
+                    Thread.sleep(FLUSH_DELAY_MS)
+                }
+
+                return
+            } catch (e: IOException) {
+                // Retry only when nothing reached the printer yet - resending
+                // after a mid-stream break could print the receipt twice.
+                if (wroteAnything) {
+                    throw e
+                }
+
+                lastError = e
+                Thread.sleep(CONNECT_RETRY_DELAY_MS)
+            }
         }
+
+        throw lastError ?: IOException("Bluetooth connect failed")
     }
 
     companion object {
         private val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        private val GLOBAL_BT_LOCK = Any()
         private const val FLUSH_DELAY_MS = 500L
         private const val BT_WRITE_CHUNK_BYTES = 512
         private const val BT_WRITE_CHUNK_DELAY_MS = 15L
+        private const val CONNECT_ATTEMPTS = 2
+        private const val CONNECT_RETRY_DELAY_MS = 400L
 
         fun hasConnectPermission(context: Context): Boolean {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {

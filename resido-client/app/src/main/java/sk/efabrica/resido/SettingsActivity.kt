@@ -227,6 +227,8 @@ class SettingsActivity : AppCompatActivity() {
         val label = getString(row.labelRes)
 
         lifecycleScope.launch {
+            row.setTestEnabled(false)
+
             val error = withContext(Dispatchers.IO) {
                 try {
                     PrinterTransport.forConfig(this@SettingsActivity, config)
@@ -237,6 +239,8 @@ class SettingsActivity : AppCompatActivity() {
                     e.message ?: e.javaClass.simpleName
                 }
             }
+
+            row.setTestEnabled(true)
 
             if (error == null) {
                 Toast.makeText(this@SettingsActivity, R.string.printer_test_ok, Toast.LENGTH_SHORT).show()
@@ -317,6 +321,10 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             updateFieldVisibility()
+        }
+
+        fun setTestEnabled(enabled: Boolean) {
+            testButton.isEnabled = enabled
         }
 
         fun setBluetoothDevice(mac: String, name: String) {
