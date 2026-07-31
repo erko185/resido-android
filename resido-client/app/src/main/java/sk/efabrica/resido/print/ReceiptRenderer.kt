@@ -72,15 +72,25 @@ class ReceiptRenderer(context: Context) {
         }
         val widthDots = mmToDots(widthMm)
 
-        // Re-layout when the CSS-declared width differs from the provisional
-        // one, then re-measure the height after the content re-wraps.
-        var heightCssPx = measurement.heightCssPx
+        // Re-layout when the CSS-declared width differs from the provisional one.
         if (widthDots != view.width) {
             layoutWebView(view, widthDots, PROVISIONAL_HEIGHT_DOTS)
             delay(RENDER_SETTLE_DELAY_MS)
-            heightCssPx = measure(view)?.heightCssPx ?: heightCssPx
         }
 
+        // Self-calibrating scale: whatever page scale the WebView chose, the
+        // measured CSS viewport width tells us the effective device-px-per-
+        // CSS-px ratio, and a CSS zoom re-lays the content out at exactly
+        // widthMm of CSS millimetres across the widthDots-wide bitmap.
+        if (!applyCalibratedZoom(view, widthMm)) {
+            resetWebView(view)
+            return@withContext null
+        }
+        delay(RENDER_SETTLE_DELAY_MS)
+
+        // Height measured after the zoom, in the content's own coordinate
+        // space - device px = css px * DOTS_PER_CSS_PX by construction.
+        val heightCssPx = measure(view)?.heightCssPx ?: measurement.heightCssPx
         val contentHeightDots = ceil(heightCssPx * DOTS_PER_CSS_PX).toInt() + HEIGHT_BUFFER_MM * DOTS_PER_MM
         val heightDots = contentHeightDots.coerceIn(MIN_HEIGHT_DOTS, MAX_HEIGHT_DOTS)
 
@@ -116,9 +126,11 @@ class ReceiptRenderer(context: Context) {
             // deterministic, identical to the desktop client.
             textZoom = 100
         }
-        // 1 CSS mm must land on DOTS_PER_MM device px so the bitmap is
-        // natively at printer resolution (203 dpi ~ 8 dots/mm).
-        view.setInitialScale((DOTS_PER_CSS_PX * 100).roundToInt())
+        // No setInitialScale here: WebView versions differ in whether they
+        // honour it (density interplay), which broke print sizing on real
+        // devices. The scale is self-calibrated per print instead - the
+        // renderer measures window.innerWidth and injects a CSS zoom so the
+        // content lays out at exactly the paper width (see applyCalibratedZoom).
 
         view.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
@@ -180,6 +192,27 @@ class ReceiptRenderer(context: Context) {
         } catch (_: Exception) {
             null
         }
+    }
+
+    /**
+     * Measures the actual CSS viewport width and injects a CSS zoom so the
+     * content lays out at exactly [widthMm] CSS millimetres across the
+     * WebView's physical width. Immune to setInitialScale/density/font-scale
+     * differences between WebView versions (the same technique the desktop
+     * client uses for its off-screen print window).
+     */
+    private suspend fun applyCalibratedZoom(view: WebView, widthMm: Int): Boolean {
+        val innerWidthCss = view.evaluateJs("window.innerWidth")?.toDoubleOrNull() ?: return false
+
+        if (innerWidthCss <= 0) {
+            return false
+        }
+
+        val targetCssWidth = widthMm * (96.0 / 25.4)
+        val zoom = innerWidthCss / targetCssWidth
+        view.evaluateJs("document.documentElement.style.zoom = '$zoom'")
+
+        return true
     }
 
     private fun layoutWebView(view: WebView, widthDots: Int, heightDots: Int) {
