@@ -44,13 +44,16 @@ object EscPosEncoder {
 
         val widthBytes = (width + 7) / 8
         val rows = Array(height) { y -> packRow(pixels, width, y, widthBytes) }
+        // Print only the inked band - blank rows above the content would just
+        // extend the physical head-to-cutter gap every receipt starts with.
+        val firstInkRow = rows.indexOfFirst { row -> row.any { it != 0.toByte() } }
         val lastInkRow = rows.indexOfLast { row -> row.any { it != 0.toByte() } }
 
         val out = ByteArrayOutputStream()
         out.write(INIT)
 
         if (lastInkRow >= 0) {
-            var y = 0
+            var y = firstInkRow
             while (y <= lastInkRow) {
                 val chunkRows = minOf(MAX_CHUNK_ROWS, lastInkRow - y + 1)
 
