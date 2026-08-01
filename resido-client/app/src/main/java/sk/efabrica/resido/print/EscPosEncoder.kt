@@ -23,17 +23,17 @@ object EscPosEncoder {
     private val INIT = byteArrayOf(0x1B, 0x40) // ESC @
 
     /**
-     * Feed (printer dots, 8 dots/mm -> 28mm) pushed out before each cut so
-     * the printed end clears the cutter blade. The feed is raster rows
-     * carrying a single dot at the left edge (a faint hairline in the
-     * otherwise blank tail): every pure feed command proved unreliable
-     * across firmwares - ESC d is line-spacing dependent (fell short of
-     * the CK710's head-to-cutter distance), ESC J was ignored outright by
-     * an XP-80 clone, and fully blank raster rows are dropped by
-     * remove-blank-lines paper saving. Rows with ink cannot be dropped.
-     * The gap seen on a slip is this feed MINUS the printer's
-     * head-to-cutter distance (~13mm on an XP-80 clone, estimated up to
-     * ~30mm on the CK710), so it must exceed the largest gap out there.
+     * Feed (printer dots, 8 dots/mm -> 36mm) pushed out before each cut so
+     * the printed end clears the cutter blade. The feed is blank raster
+     * rows - raster advance is honoured by any printer that prints at all,
+     * while feed commands are a firmware lottery: ESC d is line-spacing
+     * dependent (fell short of the CK710's head-to-cutter distance) and
+     * ESC J was ignored outright by an XP-80 clone. Blank rows (not
+     * dotted) so the part of the feed that ends up behind the blade leaves
+     * no marks on top of the next slip. The gap seen on a slip is this
+     * feed MINUS the printer's head-to-cutter distance (~13mm on an XP-80
+     * clone, estimated up to ~30mm on the CK710), so it must exceed the
+     * largest gap out there.
      */
     private const val CUT_FEED_DOTS = 36 * 8
 
@@ -83,7 +83,7 @@ object EscPosEncoder {
             }
         }
 
-        val feedRow = ByteArray(widthBytes).also { it[0] = 0x80.toByte() }
+        val feedRow = ByteArray(widthBytes)
         var fed = 0
         while (fed < CUT_FEED_DOTS) {
             val chunkRows = minOf(MAX_CHUNK_ROWS, CUT_FEED_DOTS - fed)
