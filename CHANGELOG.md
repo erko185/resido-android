@@ -4,11 +4,15 @@ All notable changes to the Android client (native Kotlin WebView shell for the
 Resido web app). Versions match `RESIDO_ANDROID_CLIENT_VERSION` in
 `script/.env`.
 
-## [Unreleased]
+## [1.0.16] - 2026-08-01
 
 ### Fixed
 
 - **Bon tails were cut off on printers with a long head-to-cutter distance (CK710)**: the feed before the cut used `ESC d 6` (six text lines), whose real length depends on the firmware's line spacing and fell short of the CK710's head-to-cutter distance — the last line(s) stayed behind the blade and came out on top of the next bon. The feed is now 36 mm of blank raster rows, which every printer advances dot-exactly (`ESC J`, the dot-based feed command, turned out to be ignored outright by XP-80 clones, so no pure feed command is trusted anymore). Matches Windows client 3.7.6.
+
+### Changed
+
+- **New release signing key** — the password of the original keystore was lost, so this release is signed with a freshly generated key. Android refuses updates whose signature differs from the installed app, which means **1.0.16 must be installed manually once on every device** (uninstall the current app, then install `resido-1.0.16.apk` from the update host); auto-updates work normally again from then on.
 
 ## [1.0.15] - 2026-07-31
 
