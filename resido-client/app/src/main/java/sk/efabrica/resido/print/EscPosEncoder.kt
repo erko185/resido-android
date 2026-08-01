@@ -31,9 +31,11 @@ object EscPosEncoder {
      * the CK710's head-to-cutter distance), ESC J was ignored outright by
      * an XP-80 clone, and fully blank raster rows are dropped by
      * remove-blank-lines paper saving. Rows with ink cannot be dropped.
-     * Must stay <= MAX_CHUNK_ROWS (single GS v 0 chunk).
+     * The gap seen on a slip is this feed MINUS the printer's
+     * head-to-cutter distance (~13mm on an XP-80 clone, estimated up to
+     * ~30mm on the CK710), so it must exceed the largest gap out there.
      */
-    private const val CUT_FEED_DOTS = 28 * 8
+    private const val CUT_FEED_DOTS = 36 * 8
 
     // GS V 0 (full cut) - the plain m=0 form is the most widely implemented;
     // e.g. Xprinter V330N firmware in Bluetooth mode ignores the fancier
@@ -81,13 +83,18 @@ object EscPosEncoder {
             }
         }
 
-        out.write(byteArrayOf(0x1D, 0x76, 0x30, 0x00))
-        out.write(widthBytes and 0xFF)
-        out.write((widthBytes shr 8) and 0xFF)
-        out.write(CUT_FEED_DOTS and 0xFF)
-        out.write((CUT_FEED_DOTS shr 8) and 0xFF)
         val feedRow = ByteArray(widthBytes).also { it[0] = 0x80.toByte() }
-        repeat(CUT_FEED_DOTS) { out.write(feedRow) }
+        var fed = 0
+        while (fed < CUT_FEED_DOTS) {
+            val chunkRows = minOf(MAX_CHUNK_ROWS, CUT_FEED_DOTS - fed)
+            out.write(byteArrayOf(0x1D, 0x76, 0x30, 0x00))
+            out.write(widthBytes and 0xFF)
+            out.write((widthBytes shr 8) and 0xFF)
+            out.write(chunkRows and 0xFF)
+            out.write((chunkRows shr 8) and 0xFF)
+            repeat(chunkRows) { out.write(feedRow) }
+            fed += chunkRows
+        }
         out.write(CUT)
 
         return out.toByteArray()
