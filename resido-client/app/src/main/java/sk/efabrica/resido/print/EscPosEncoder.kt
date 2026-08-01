@@ -22,9 +22,16 @@ object EscPosEncoder {
 
     private val INIT = byteArrayOf(0x1B, 0x40) // ESC @
 
-    // 6 lines (~18mm) so the printed end clears the cutter blade, which sits
-    // well above the print head on 80mm printers.
-    private val FEED = byteArrayOf(0x1B, 0x64, 0x06) // ESC d 6
+    /**
+     * Blank raster rows (printer dots, 8 dots/mm -> 24mm) pushed out before
+     * each cut so the printed end clears the cutter blade. Blank raster is
+     * used instead of ESC d line feeds: raster advance is honoured by any
+     * firmware that prints the content at all, while ESC d fell short of the
+     * head-to-cutter distance on some printers (CK710) - the receipt tail
+     * then stayed behind the blade and came out on top of the next slip.
+     * Must stay <= MAX_CHUNK_ROWS (single GS v 0 chunk).
+     */
+    private const val CUT_FEED_ROWS = 24 * 8
 
     // GS V 0 (full cut) - the plain m=0 form is the most widely implemented;
     // e.g. Xprinter V330N firmware in Bluetooth mode ignores the fancier
@@ -72,7 +79,12 @@ object EscPosEncoder {
             }
         }
 
-        out.write(FEED)
+        out.write(byteArrayOf(0x1D, 0x76, 0x30, 0x00))
+        out.write(widthBytes and 0xFF)
+        out.write((widthBytes shr 8) and 0xFF)
+        out.write(CUT_FEED_ROWS and 0xFF)
+        out.write((CUT_FEED_ROWS shr 8) and 0xFF)
+        out.write(ByteArray(CUT_FEED_ROWS * widthBytes))
         out.write(CUT)
 
         return out.toByteArray()
