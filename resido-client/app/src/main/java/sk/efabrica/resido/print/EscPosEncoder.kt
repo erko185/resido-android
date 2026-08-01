@@ -23,14 +23,15 @@ object EscPosEncoder {
     private val INIT = byteArrayOf(0x1B, 0x40) // ESC @
 
     /**
-     * Feed (printer dots, 8 dots/mm -> 28mm) pushed out via ESC J before
-     * each cut so the printed end clears the cutter blade. ESC J is
-     * dot-exact on every firmware: ESC d n is line-spacing dependent (6
-     * "lines" measured only 15mm on an XP-80 clone and fell short of the
-     * CK710's head-to-cutter distance - the bon tail then came out on top
-     * of the next slip), and blank raster rows are skipped entirely by
-     * firmwares with a remove-blank-lines paper-saving option.
-     * Must stay <= 255 (ESC J n is a single byte).
+     * Feed (printer dots, 8 dots/mm -> 28mm) pushed out before each cut so
+     * the printed end clears the cutter blade. The feed is raster rows
+     * carrying a single dot at the left edge (a faint hairline in the
+     * otherwise blank tail): every pure feed command proved unreliable
+     * across firmwares - ESC d is line-spacing dependent (fell short of
+     * the CK710's head-to-cutter distance), ESC J was ignored outright by
+     * an XP-80 clone, and fully blank raster rows are dropped by
+     * remove-blank-lines paper saving. Rows with ink cannot be dropped.
+     * Must stay <= MAX_CHUNK_ROWS (single GS v 0 chunk).
      */
     private const val CUT_FEED_DOTS = 28 * 8
 
@@ -80,7 +81,13 @@ object EscPosEncoder {
             }
         }
 
-        out.write(byteArrayOf(0x1B, 0x4A, (CUT_FEED_DOTS and 0xFF).toByte())) // ESC J n
+        out.write(byteArrayOf(0x1D, 0x76, 0x30, 0x00))
+        out.write(widthBytes and 0xFF)
+        out.write((widthBytes shr 8) and 0xFF)
+        out.write(CUT_FEED_DOTS and 0xFF)
+        out.write((CUT_FEED_DOTS shr 8) and 0xFF)
+        val feedRow = ByteArray(widthBytes).also { it[0] = 0x80.toByte() }
+        repeat(CUT_FEED_DOTS) { out.write(feedRow) }
         out.write(CUT)
 
         return out.toByteArray()
